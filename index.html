@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IRL Skill Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --rs-bg: #2c2c1a; --rs-panel: #3d3d20; --rs-border-outer: #8b7a2a;
+      --rs-border-inner: #c4a832; --rs-gold: #f0c030; --rs-gold-dim: #a8872a;
+      --rs-text: #ffe066; --rs-text-dim: #b8a030; --rs-green: #00cc44;
+      --rs-red: #cc2200; --rs-xp-bar: #99cc00; --rs-xp-bg: #222; --rs-input-bg: #1a1a0d;
+    }
+    body { background: #1a1a0d; font-family: 'VT323', monospace; color: var(--rs-text); min-height: 100vh; display: flex; justify-content: center; padding: 16px; }
+    .app { width: 100%; max-width: 680px; }
+    .rs-panel { background: var(--rs-panel); border: 3px solid var(--rs-border-outer); outline: 2px solid var(--rs-border-inner); outline-offset: -6px; padding: 12px; }
+    .rs-panel-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--rs-gold); text-align: center; margin-bottom: 12px; letter-spacing: 1px; text-shadow: 2px 2px #000; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+    .tab { font-family: 'Press Start 2P', monospace; font-size: 7px; padding: 6px 10px; background: var(--rs-bg); border: 2px solid var(--rs-border-outer); color: var(--rs-text-dim); cursor: pointer; }
+    .tab.active { background: var(--rs-panel); color: var(--rs-gold); border-color: var(--rs-gold); }
+    .tab:hover:not(.active) { color: var(--rs-text); }
+    .skills-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+    .skill-card { background: var(--rs-bg); border: 1px solid var(--rs-gold-dim); padding: 6px 8px; cursor: pointer; }
+    .skill-card:hover { border-color: var(--rs-gold); }
+    .skill-card.selected { border-color: var(--rs-green); background: #1a2a0d; }
+    .skill-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .skill-icon { font-size: 20px; line-height: 1; }
+    .skill-info { flex: 1; min-width: 0; }
+    .skill-name { font-size: 14px; color: var(--rs-text-dim); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .skill-level { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--rs-gold); text-shadow: 1px 1px #000; }
+    .xp-bar-wrap { height: 5px; background: var(--rs-xp-bg); border: 1px solid #444; margin-top: 3px; }
+    .xp-bar-fill { height: 100%; background: var(--rs-xp-bar); transition: width 0.4s ease; }
+    .log-section { margin-top: 8px; }
+    .log-row { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; }
+    .field-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 100px; }
+    .field-label { font-size: 13px; color: var(--rs-text-dim); }
+    .rs-input, .rs-select { font-family: 'VT323', monospace; font-size: 17px; background: var(--rs-input-bg); border: 2px solid var(--rs-gold-dim); color: var(--rs-text); padding: 4px 6px; width: 100%; outline: none; }
+    .rs-input:focus, .rs-select:focus { border-color: var(--rs-gold); }
+    .rs-select option { background: #2c2c1a; }
+    .rs-btn { font-family: 'Press Start 2P', monospace; font-size: 8px; background: #4a3a00; border: 2px solid var(--rs-gold); color: var(--rs-gold); padding: 8px 12px; cursor: pointer; white-space: nowrap; align-self: flex-end; letter-spacing: 0.5px; }
+    .rs-btn:hover { background: #665200; }
+    .rs-btn:active { transform: scale(0.97); }
+    .rs-btn.danger { background: #3a0000; border-color: var(--rs-red); color: #ff6644; }
+    .xp-popup { position: fixed; pointer-events: none; font-family: 'Press Start 2P', monospace; font-size: 10px; color: #fff; text-shadow: 1px 1px #000, -1px -1px #000; animation: floatUp 1.8s ease-out forwards; z-index: 999; white-space: nowrap; }
+    @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-70px); } }
+    .history-list { max-height: 260px; overflow-y: auto; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 6px; border-bottom: 1px solid #3a3a20; font-size: 15px; }
+    .history-item:hover { background: #1a1a0a; }
+    .history-meta { color: var(--rs-text-dim); font-size: 12px; }
+    .history-xp { color: var(--rs-green); font-family: 'Press Start 2P', monospace; font-size: 9px; }
+    .detail-section { margin-top: 10px; }
+    .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #3a3a20; font-size: 15px; }
+    .stat-label { color: var(--rs-text-dim); }
+    .stat-val { color: var(--rs-gold); font-family: 'Press Start 2P', monospace; font-size: 9px; }
+    .level-badge { display: block; font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--rs-gold); text-shadow: 2px 2px #000; background: #1a1400; border: 2px solid var(--rs-gold); padding: 10px 16px; margin: 8px 0; text-align: center; }
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: var(--rs-panel); border: 3px solid var(--rs-gold); padding: 18px; width: 320px; max-width: 95vw; }
+    .modal-title { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--rs-gold); margin-bottom: 14px; text-align: center; }
+    .modal-row { margin-bottom: 10px; }
+    .divider { border: none; border-top: 1px solid var(--rs-gold-dim); margin: 10px 0; }
+    .empty-msg { color: var(--rs-text-dim); font-size: 15px; text-align: center; padding: 20px; }
+    .total-level { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--rs-text-dim); text-align: right; margin-top: 8px; }
+    .total-level span { color: var(--rs-gold); font-size: 11px; }
+    .levelup-banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1400; border: 3px solid var(--rs-gold); font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--rs-gold); padding: 12px 24px; z-index: 200; text-align: center; animation: bannerIn 0.2s ease-out; white-space: nowrap; }
+    @keyframes bannerIn { from { opacity:0; transform: translateX(-50%) scale(0.8); } to { opacity:1; transform: translateX(-50%) scale(1); } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="rs-panel">
+    <div class="rs-panel-title">⚔ IRL SKILL TRACKER ⚔</div>
+    <div class="tabs">
+      <div class="tab active" onclick="setTab('skills')">SKILLS</div>
+      <div class="tab" onclick="setTab('log')">LOG XP</div>
+      <div class="tab" onclick="setTab('history')">HISTORY</div>
+    </div>
+
+    <div id="tab-skills">
+      <div class="skills-grid" id="skills-grid"></div>
+      <div class="total-level" id="total-level-display"></div>
+      <hr class="divider">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="rs-btn" onclick="showAddSkill()">+ ADD SKILL</button>
+        <button class="rs-btn danger" id="del-btn" style="display:none" onclick="deleteSelectedSkill()">DELETE SKILL</button>
+      </div>
+    </div>
+
+    <div id="tab-log" style="display:none">
+      <div class="log-section">
+        <div class="log-row">
+          <div class="field-group">
+            <span class="field-label">SKILL</span>
+            <select class="rs-select" id="log-skill-sel"></select>
+          </div>
+          <div class="field-group" style="max-width:110px;">
+            <span class="field-label">XP AMOUNT</span>
+            <input type="number" class="rs-input" id="log-xp" placeholder="100" min="1" max="999999">
+          </div>
+          <div class="field-group" style="flex:2;min-width:130px;">
+            <span class="field-label">ACTIVITY (optional)</span>
+            <input type="text" class="rs-input" id="log-activity" placeholder="e.g. 1hr piano">
+          </div>
+          <button class="rs-btn" onclick="logXP()">GAIN XP</button>
+        </div>
+        <hr class="divider">
+        <div id="selected-skill-detail" class="detail-section"></div>
+      </div>
+    </div>
+
+    <div id="tab-history" style="display:none">
+      <div class="history-list" id="history-list"></div>
+      <hr class="divider">
+      <button class="rs-btn danger" onclick="clearHistory()">CLEAR HISTORY</button>
+    </div>
+  </div>
+</div>
+
+<div id="add-skill-modal" style="display:none">
+  <div class="modal-bg" onclick="if(event.target===this)hideAddSkill()">
+    <div class="modal">
+      <div class="modal-title">ADD NEW SKILL</div>
+      <div class="modal-row">
+        <span class="field-label">SKILL NAME</span>
+        <input type="text" class="rs-input" id="new-skill-name" placeholder="e.g. Guitar" maxlength="20" style="width:100%;margin-top:4px;">
+      </div>
+      <div class="modal-row">
+        <span class="field-label">ICON (any emoji)</span>
+        <input type="text" class="rs-input" id="new-skill-icon" placeholder="🎸" maxlength="2" style="width:100%;margin-top:4px;">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="rs-btn" style="flex:1" onclick="addSkill()">CREATE</button>
+        <button class="rs-btn danger" style="flex:1" onclick="hideAddSkill()">CANCEL</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const XP_TABLE = (() => {
+    const t = [0];
+    for (let lv = 1; lv <= 99; lv++) {
+      let pts = 0;
+      for (let i = 1; i < lv; i++) pts += Math.floor(i + 300 * Math.pow(2, i / 7));
+      t.push(Math.floor(pts / 4));
+    }
+    return t;
+  })();
+
+  function levelFromXP(xp) { let lv = 1; while (lv < 99 && XP_TABLE[lv] <= xp) lv++; return lv; }
+  function xpToNextLevel(lv, xp) {
+    if (lv >= 99) return { needed: 0, progress: 1 };
+    const cur = XP_TABLE[lv - 1] || 0, next = XP_TABLE[lv];
+    return { needed: Math.max(0, next - xp), progress: Math.min(1, (xp - cur) / (next - cur)) };
+  }
+
+  const DEFAULTS = [
+    { name: 'Cooking', icon: '🍳' }, { name: 'Running', icon: '🏃' },
+    { name: 'Reading', icon: '📚' }, { name: 'Coding', icon: '💻' },
+    { name: 'Guitar', icon: '🎸' }, { name: 'Drawing', icon: '✏️' }
+  ];
+
+  function loadState() {
+    try { const s = localStorage.getItem('irl_skills_v2'); if (s) return JSON.parse(s); } catch (e) {}
+    return { skills: DEFAULTS.map((s, i) => ({ id: i + 1, name: s.name, icon: s.icon, xp: 0 })), history: [], nextId: DEFAULTS.length + 1, selectedSkill: null };
+  }
+  function saveState() { try { localStorage.setItem('irl_skills_v2', JSON.stringify(state)); } catch (e) {} }
+
+  let state = loadState();
+
+  function setTab(tab) {
+    ['skills', 'log', 'history'].forEach((t, i) => {
+      document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+      document.querySelectorAll('.tab')[i].classList.toggle('active', t === tab);
+    });
+    if (tab === 'log') updateLogPanel();
+    if (tab === 'history') renderHistory();
+  }
+
+  function renderSkills() {
+    const grid = document.getElementById('skills-grid');
+    grid.innerHTML = '';
+    state.skills.forEach(sk => {
+      const lv = levelFromXP(sk.xp);
+      const { progress } = xpToNextLevel(lv, sk.xp);
+      const card = document.createElement('div');
+      card.className = 'skill-card' + (state.selectedSkill === sk.id ? ' selected' : '');
+      card.onclick = () => {
+        state.selectedSkill = state.selectedSkill === sk.id ? null : sk.id;
+        saveState(); renderSkills();
+        document.getElementById('del-btn').style.display = state.selectedSkill ? '' : 'none';
+      };
+      card.innerHTML = `<div class="skill-header"><span class="skill-icon">${sk.icon}</span><div class="skill-info"><div class="skill-name">${sk.name}</div><div class="skill-level">${lv}</div></div></div><div class="xp-bar-wrap"><div class="xp-bar-fill" style="width:${Math.round(progress * 100)}%"></div></div>`;
+      grid.appendChild(card);
+    });
+    const total = state.skills.reduce((a, s) => a + levelFromXP(s.xp), 0);
+    document.getElementById('total-level-display').innerHTML = `TOTAL LEVEL: <span>${total}</span>`;
+    document.getElementById('del-btn').style.display = state.selectedSkill ? '' : 'none';
+  }
+
+  function updateLogPanel() {
+    const sel = document.getElementById('log-skill-sel');
+    const prev = sel.value;
+    sel.innerHTML = '';
+    state.skills.forEach(sk => { const o = document.createElement('option'); o.value = sk.id; o.textContent = sk.icon + ' ' + sk.name; sel.appendChild(o); });
+    if (prev) sel.value = prev;
+    renderSkillDetail();
+    sel.onchange = renderSkillDetail;
+  }
+
+  function renderSkillDetail() {
+    const id = parseInt(document.getElementById('log-skill-sel')?.value);
+    const sk = state.skills.find(s => s.id === id);
+    const div = document.getElementById('selected-skill-detail');
+    if (!sk) { div.innerHTML = ''; return; }
+    const lv = levelFromXP(sk.xp);
+    const { needed, progress } = xpToNextLevel(lv, sk.xp);
+    const nextXP = lv < 99 ? XP_TABLE[lv] : XP_TABLE[98];
+    const curXP = XP_TABLE[lv - 1] || 0;
+    div.innerHTML = `<div class="level-badge">${sk.icon} ${sk.name} — LEVEL ${lv}</div><div class="xp-bar-wrap" style="height:10px;margin:6px 0"><div class="xp-bar-fill" style="width:${Math.round(progress * 100)}%"></div></div><div class="stat-row"><span class="stat-label">total xp</span><span class="stat-val">${sk.xp.toLocaleString()}</span></div>${lv < 99 ? `<div class="stat-row"><span class="stat-label">xp to level ${lv + 1}</span><span class="stat-val">${needed.toLocaleString()}</span></div>` : ''}<div class="stat-row"><span class="stat-label">progress</span><span class="stat-val">${Math.round(progress * 100)}%</span></div>${lv < 99 ? `<div class="stat-row"><span class="stat-label">level range</span><span class="stat-val">${curXP.toLocaleString()} – ${nextXP.toLocaleString()} xp</span></div>` : '<div class="stat-row"><span class="stat-label">STATUS</span><span class="stat-val" style="color:#ffcc00">MAX LEVEL!</span></div>'}`;
+  }
+
+  function logXP() {
+    const id = parseInt(document.getElementById('log-skill-sel').value);
+    const xp = parseInt(document.getElementById('log-xp').value) || 0;
+    const activity = document.getElementById('log-activity').value.trim() || 'Manual entry';
+    if (!id || xp < 1) { alert('Pick a skill and enter XP > 0'); return; }
+    const sk = state.skills.find(s => s.id === id);
+    if (!sk) return;
+    const lvBefore = levelFromXP(sk.xp);
+    sk.xp += xp;
+    const lvAfter = levelFromXP(sk.xp);
+    state.history.unshift({ skillId: id, skillName: sk.name, icon: sk.icon, xp, activity, ts: Date.now() });
+    if (state.history.length > 200) state.history = state.history.slice(0, 200);
+    saveState(); renderSkills(); renderSkillDetail();
+    showXPPopup(xp);
+    document.getElementById('log-xp').value = '';
+    document.getElementById('log-activity').value = '';
+    if (lvAfter > lvBefore) showLevelUp(sk.icon, sk.name, lvAfter);
+  }
+
+  function showXPPopup(xp) {
+    const p = document.createElement('div');
+    p.className = 'xp-popup';
+    p.textContent = `+ ${xp.toLocaleString()} XP`;
+    p.style.cssText = `left:${35 + Math.random() * 30}%;top:40%;`;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 1900);
+  }
+
+  function showLevelUp(icon, name, lv) {
+    const b = document.createElement('div');
+    b.className = 'levelup-banner';
+    b.innerHTML = `⬆ LEVEL UP!<br>${icon} ${name} is now level ${lv}!`;
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 3000);
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    if (!state.history.length) { list.innerHTML = '<div class="empty-msg">No XP logged yet.</div>'; return; }
+    list.innerHTML = state.history.map(h => {
+      const d = new Date(h.ts);
+      const ds = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `<div class="history-item"><span>${h.icon} ${h.skillName} — <span style="color:var(--rs-text)">${h.activity}</span></span><div style="text-align:right"><div class="history-xp">+${h.xp.toLocaleString()} XP</div><div class="history-meta">${ds}</div></div></div>`;
+    }).join('');
+  }
+
+  function clearHistory() { if (confirm('Clear all history?')) { state.history = []; saveState(); renderHistory(); } }
+  function showAddSkill() { document.getElementById('add-skill-modal').style.display = ''; }
+  function hideAddSkill() { document.getElementById('add-skill-modal').style.display = 'none'; }
+
+  function addSkill() {
+    const name = document.getElementById('new-skill-name').value.trim();
+    const icon = document.getElementById('new-skill-icon').value.trim() || '⭐';
+    if (!name) { alert('Enter a skill name'); return; }
+    state.skills.push({ id: state.nextId++, name, icon, xp: 0 });
+    saveState(); renderSkills(); updateLogPanel(); hideAddSkill();
+    document.getElementById('new-skill-name').value = '';
+    document.getElementById('new-skill-icon').value = '';
+  }
+
+  function deleteSelectedSkill() {
+    if (!state.selectedSkill) return;
+    const sk = state.skills.find(s => s.id === state.selectedSkill);
+    if (!sk || !confirm(`Delete "${sk.name}"? All XP will be lost.`)) return;
+    state.skills = state.skills.filter(s => s.id !== state.selectedSkill);
+    state.selectedSkill = null;
+    saveState(); renderSkills(); updateLogPanel();
+  }
+
+  renderSkills();
+</script>
+</body>
+</html>
