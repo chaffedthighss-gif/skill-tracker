@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IRL Skill Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #1a1a0d; --panel: #2a2a14; --panel2: #3a3a1e;
+      --gold: #f0c030; --gold-dim: #a8872a; --gold-dark: #4a3a00;
+      --text: #ffe066; --text-dim: #b8a030; --text-muted: #6a5a18;
+      --green: #44cc44; --red: #cc3300; --orange: #ff8800;
+      --xp-bar: #99cc00; --border: #6a5a18;
+    }
+    body { background: var(--bg); font-family: 'VT323', monospace; color: var(--text); min-height: 100vh; padding: 12px; }
+    .app { max-width: 700px; margin: 0 auto; }
+    .page { display: none; } .page.active { display: block; }
+
+    /* SHARED */
+    .rs-panel { background: var(--panel); border: 2px solid var(--border); padding: 12px; margin-bottom: 10px; }
+    .panel-title { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--gold-dim); margin-bottom: 10px; letter-spacing: 1px; }
+    .tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+    .tab { font-family: 'Press Start 2P', monospace; font-size: 7px; padding: 6px 8px; background: var(--bg); border: 2px solid var(--border); color: var(--text-muted); cursor: pointer; flex: 1; text-align: center; }
+    .tab.active { background: var(--panel); color: var(--gold); border-color: var(--gold); }
+    .tab:hover:not(.active) { color: var(--text-dim); }
+    .rs-input, .rs-select { font-family: 'VT323', monospace; font-size: 17px; background: #111; border: 2px solid var(--border); color: var(--text); padding: 5px 8px; width: 100%; outline: none; }
+    .rs-input:focus, .rs-select:focus { border-color: var(--gold); }
+    .rs-select option { background: #1a1a0d; }
+    .rs-btn { font-family: 'Press Start 2P', monospace; font-size: 8px; background: var(--gold-dark); border: 2px solid var(--gold); color: var(--gold); padding: 9px 14px; cursor: pointer; letter-spacing: 0.5px; }
+    .rs-btn:hover { background: #665200; } .rs-btn:active { transform: scale(0.98); }
+    .rs-btn.full { width: 100%; margin-top: 4px; }
+    .rs-btn.danger { background: #3a0000; border-color: var(--red); color: #ff6644; }
+    .rs-btn.sm { font-size: 7px; padding: 6px 10px; }
+    .rs-btn.orange { background: #3a1a00; border-color: var(--orange); color: var(--orange); }
+    .field { display: flex; flex-direction: column; gap: 3px; }
+    .field label { font-size: 13px; color: var(--text-dim); }
+    .form-grid { display: grid; gap: 8px; margin-bottom: 10px; }
+    .form-grid.two { grid-template-columns: 1fr 1fr; }
+    .form-grid.three { grid-template-columns: 2fr 1fr 1fr; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    .xp-bar-wrap { height: 6px; background: #111; border: 1px solid #444; }
+    .xp-bar-fill { height: 100%; background: var(--xp-bar); transition: width 0.5s ease; }
+    .empty-msg { color: var(--text-muted); font-size: 15px; text-align: center; padding: 20px; }
+
+    /* HOME */
+    .home-header { text-align: center; margin-bottom: 14px; }
+    .home-header h1 { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--gold); text-shadow: 2px 2px #000, 0 0 20px #f0c03055; letter-spacing: 2px; margin-bottom: 5px; }
+    .home-header .sub { font-size: 15px; color: var(--text-dim); }
+    .skills-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 10px; }
+    .skill-card { background: var(--panel); border: 2px solid var(--border); padding: 10px 8px; cursor: pointer; }
+    .skill-card:hover { border-color: var(--gold-dim); }
+    .skill-card.has-page { border-color: var(--gold-dim); }
+    .skill-card.has-page:hover { border-color: var(--gold); background: #2a2a1a; }
+    .skill-card.selected { border-color: var(--green); background: #1a2a0d; }
+    .skill-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .skill-icon { font-size: 20px; line-height: 1; }
+    .skill-name { font-size: 14px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .skill-level { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--gold); }
+    .skill-tag { font-family: 'Press Start 2P', monospace; font-size: 6px; color: var(--gold-dim); margin-top: 2px; }
+    .total-level { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--text-muted); text-align: right; margin-top: 6px; }
+    .total-level span { color: var(--gold); font-size: 10px; }
+
+    /* ADD SKILL MODAL */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: var(--panel); border: 3px solid var(--gold); padding: 18px; width: 320px; max-width: 95vw; }
+    .modal-title { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--gold); margin-bottom: 14px; text-align: center; }
+    .modal-row { margin-bottom: 10px; }
+
+    /* STRENGTH PAGE */
+    .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .back-btn { font-family: 'Press Start 2P', monospace; font-size: 7px; background: var(--gold-dark); border: 2px solid var(--gold-dim); color: var(--gold-dim); padding: 7px 10px; cursor: pointer; flex-shrink: 0; }
+    .back-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .page-title-wrap { flex: 1; }
+    .page-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--gold); text-shadow: 2px 2px #000; }
+    .page-subtitle { font-size: 14px; color: var(--text-dim); margin-top: 2px; }
+
+    /* LEVEL CARD */
+    .level-card { background: var(--panel); border: 2px solid var(--gold-dim); padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 14px; }
+    .level-orb { font-family: 'Press Start 2P', monospace; font-size: 26px; color: var(--gold); text-shadow: 0 0 20px #f0c03088; min-width: 54px; text-align: center; }
+    .level-info { flex: 1; min-width: 0; }
+    .level-rank { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--gold); margin-bottom: 5px; }
+    .xp-numbers { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
+
+    /* STREAK CARD */
+    .streak-card { background: var(--panel); border: 2px solid var(--border); padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .streak-flame { font-size: 26px; line-height: 1; }
+    .streak-info { flex: 1; min-width: 100px; }
+    .streak-num { font-family: 'Press Start 2P', monospace; font-size: 16px; color: var(--orange); text-shadow: 0 0 10px #ff880066; }
+    .streak-label { font-size: 13px; color: var(--text-dim); }
+    .streak-best { font-size: 13px; color: var(--text-muted); }
+    .multiplier-badge { font-family: 'Press Start 2P', monospace; font-size: 8px; background: #2a1a00; border: 2px solid var(--orange); color: var(--orange); padding: 5px 8px; text-align: center; }
+    .multiplier-badge.active { box-shadow: 0 0 10px #ff880044; }
+    .rest-warning { font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--red); margin-top: 4px; }
+
+    /* XP PREVIEW */
+    .xp-preview { background: #111; border: 1px solid var(--border); padding: 8px 10px; margin-bottom: 10px; font-size: 14px; color: var(--text-dim); display: none; }
+    .xp-preview .big { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--green); }
+    .pr-tag { color: var(--gold); font-family: 'Press Start 2P', monospace; font-size: 7px; margin-left: 6px; }
+
+    /* SESSION PANEL */
+    .rpe-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .rpe-btn { font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 8px; border: 2px solid var(--border); background: #111; color: var(--text-muted); cursor: pointer; flex: 1; text-align: center; min-width: 28px; }
+    .rpe-btn:hover { border-color: var(--gold-dim); color: var(--text-dim); }
+    .rpe-btn.selected { border-color: var(--gold); color: var(--gold); background: var(--gold-dark); }
+    .rpe-btn.hard { border-color: var(--orange); color: var(--orange); background: #3a1a00; }
+    .rpe-btn.max { border-color: var(--red); color: var(--red); background: #3a0000; }
+    .friend-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; background: #111; border: 1px solid var(--border); }
+    .friend-row label { font-size: 15px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .friend-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; }
+    .friend-bonus { font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--green); margin-left: auto; }
+    .session-xp-preview { font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--green); text-align: center; padding: 8px; background: #0a1a0a; border: 1px solid var(--green); margin-top: 8px; display: none; }
+
+    /* PR GRID */
+    .pr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .pr-card { background: var(--panel2); border: 1px solid var(--border); padding: 8px 10px; }
+    .pr-exercise { font-size: 14px; color: var(--text-dim); margin-bottom: 2px; }
+    .pr-weight { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--gold); }
+    .pr-meta { font-size: 12px; color: var(--text-muted); }
+    .pr-empty-sm { color: var(--text-muted); font-size: 13px; }
+
+    /* HISTORY */
+    .history-wrap { max-height: 300px; overflow-y: auto; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 6px; border-bottom: 1px solid #2a2a14; font-size: 14px; gap: 8px; }
+    .history-item:hover { background: #111; }
+    .history-left { flex: 1; min-width: 0; }
+    .history-exercise { color: var(--text); }
+    .history-detail { color: var(--text-muted); font-size: 12px; }
+    .history-right { text-align: right; flex-shrink: 0; }
+    .history-xp { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--green); }
+    .history-date { font-size: 11px; color: var(--text-muted); }
+    .pr-badge { font-family: 'Press Start 2P', monospace; font-size: 6px; background: var(--gold-dark); border: 1px solid var(--gold); color: var(--gold); padding: 2px 4px; margin-left: 4px; vertical-align: middle; }
+    .session-badge { font-family: 'Press Start 2P', monospace; font-size: 6px; background: #001a2a; border: 1px solid var(--blue); color: var(--blue); padding: 2px 4px; margin-left: 4px; vertical-align: middle; }
+
+    /* POPUPS */
+    .xp-popup { position: fixed; pointer-events: none; font-family: 'Press Start 2P', monospace; font-size: 10px; color: #fff; text-shadow: 1px 1px #000, -1px -1px #000, 0 0 8px var(--green); animation: floatUp 2s ease-out forwards; z-index: 999; white-space: nowrap; }
+    @keyframes floatUp { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-80px)} }
+    .banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1a1400; border: 3px solid var(--gold); font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--gold); padding: 12px 24px; z-index: 200; text-align: center; animation: bannerIn 0.3s ease-out; white-space: nowrap; box-shadow: 0 0 30px #f0c03044; }
+    .banner.pr { border-color: var(--gold); color: var(--gold); }
+    .banner.streak { border-color: var(--orange); color: var(--orange); background: #1a0d00; }
+    .banner.levelup { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 40px #f0c03066; }
+    @keyframes bannerIn { from{opacity:0;transform:translateX(-50%) scale(0.7)} to{opacity:1;transform:translateX(-50%) scale(1)} }
+
+    /* RANK COLORS */
+    .rank-iron { color: #a8a9ad; }
+    .rank-bronze { color: #cd7f32; }
+    .rank-steel { color: #8ab4f8; }
+    .rank-gold { color: var(--gold); }
+    .rank-dragon { color: #cc4400; }
+    .rank-max { color: #ff44ff; text-shadow: 0 0 10px #ff44ff88; }
+
+    @media(max-width:480px) {
+      .form-grid.three { grid-template-columns: 1fr 1fr; }
+      .pr-grid { grid-template-columns: 1fr; }
+      .level-orb { font-size: 20px; min-width: 44px; }
+      .skills-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══════════════ HOME PAGE ══════════════ -->
+  <div id="page-home" class="page active">
+    <div class="home-header">
+      <h1>⚔ IRL SKILL TRACKER ⚔</h1>
+      <div class="sub">Level up your real life</div>
+    </div>
+    <div class="skills-grid" id="skills-grid"></div>
+    <div class="total-level" id="total-level-display"></div>
+    <hr class="divider">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="rs-btn sm" onclick="showAddSkill()">+ ADD SKILL</button>
+      <button class="rs-btn sm danger" id="del-btn" style="display:none" onclick="deleteSelectedSkill()">DELETE SKILL</button>
+    </div>
+
+    <!-- Add Skill Modal -->
+    <div id="add-skill-modal" style="display:none">
+      <div class="modal-bg" onclick="if(event.target===this)hideAddSkill()">
+        <div class="modal">
+          <div class="modal-title">ADD NEW SKILL</div>
+          <div class="modal-row">
+            <span class="field label" style="font-size:13px;color:var(--text-dim)">SKILL NAME</span>
+            <input type="text" class="rs-input" id="new-skill-name" placeholder="e.g. Guitar" maxlength="20" style="width:100%;margin-top:4px;">
+          </div>
+          <div class="modal-row">
+            <span class="field label" style="font-size:13px;color:var(--text-dim)">ICON (emoji)</span>
+            <input type="text" class="rs-input" id="new-skill-icon" placeholder="🎸" maxlength="2" style="width:100%;margin-top:4px;">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="rs-btn" style="flex:1" onclick="addSkill()">CREATE</button>
+            <button class="rs-btn danger" style="flex:1" onclick="hideAddSkill()">CANCEL</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ STRENGTH PAGE ══════════════ -->
+  <div id="page-strength" class="page">
+    <div class="page-header">
+      <button class="back-btn" onclick="goHome()">◀ BACK</button>
+      <div class="page-title-wrap">
+        <div class="page-title">🏋 STRENGTH</div>
+        <div class="page-subtitle">Track lifts. Hit PRs. Stay consistent.</div>
+      </div>
+    </div>
+
+    <!-- Level Card -->
+    <div class="level-card">
+      <div class="level-orb rank-iron" id="s-level-num">1</div>
+      <div class="level-info">
+        <div class="level-rank rank-iron" id="s-level-rank">NOVICE LIFTER</div>
+        <div class="xp-bar-wrap"><div class="xp-bar-fill" id="s-xp-bar" style="width:0%"></div></div>
+        <div class="xp-numbers" id="s-xp-numbers">0 / 83 XP to level 2</div>
+      </div>
+    </div>
+
+    <!-- Streak Card -->
+    <div class="streak-card" id="streak-card">
+      <div class="streak-flame">🔥</div>
+      <div class="streak-info">
+        <div class="streak-num" id="streak-num">0</div>
+        <div class="streak-label">DAY STREAK</div>
+        <div class="streak-best" id="streak-best">Best: 0 days</div>
+        <div class="rest-warning" id="rest-warning" style="display:none"></div>
+      </div>
+      <div class="multiplier-badge" id="multiplier-badge">1.0x XP</div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="sTab('log')">LOG LIFT</div>
+      <div class="tab" onclick="sTab('session')">END SESSION</div>
+      <div class="tab" onclick="sTab('prs')">PRs</div>
+      <div class="tab" onclick="sTab('history')">HISTORY</div>
+    </div>
+
+    <!-- LOG LIFT TAB -->
+    <div id="s-tab-log" class="rs-panel">
+      <div class="panel-title">LOG A SET</div>
+      <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:8px;">
+        <div class="field">
+          <label>EXERCISE</label>
+          <select class="rs-select" id="ex-select" onchange="updateXPPreview()"></select>
+        </div>
+      </div>
+      <div class="form-grid three">
+        <div class="field">
+          <label>WEIGHT (lbs)</label>
+          <input type="number" class="rs-input" id="ex-weight" placeholder="135" min="0" max="2000" oninput="updateXPPreview()">
+        </div>
+        <div class="field">
+          <label>SETS</label>
+          <input type="number" class="rs-input" id="ex-sets" placeholder="3" min="1" max="20" value="3" oninput="updateXPPreview()">
+        </div>
+        <div class="field">
+          <label>REPS</label>
+          <input type="number" class="rs-input" id="ex-reps" placeholder="10" min="1" max="100" oninput="updateXPPreview()">
+        </div>
+      </div>
+      <div class="xp-preview" id="xp-preview"></div>
+      <button class="rs-btn full" onclick="logLift()">⚔ LOG SET</button>
+      <hr class="divider">
+      <div class="panel-title">ADD ACCESSORY EXERCISE</div>
+      <div class="form-grid two">
+        <div class="field">
+          <label>EXERCISE NAME</label>
+          <input type="text" class="rs-input" id="custom-ex-name" placeholder="e.g. Cable Fly" maxlength="30">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="rs-btn sm" onclick="addCustomExercise()">+ ADD</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- END SESSION TAB -->
+    <div id="s-tab-session" class="rs-panel" style="display:none">
+      <div class="panel-title">END SESSION</div>
+      <div style="font-size:15px;color:var(--text-dim);margin-bottom:6px;">HOW HARD WAS TODAY?</div>
+      <div class="rpe-row" id="rpe-row"></div>
+      <div class="friend-row">
+        <label>
+          <input type="checkbox" id="friend-check" onchange="updateSessionPreview()">
+          Went with a friend
+        </label>
+        <span class="friend-bonus">+15% XP</span>
+      </div>
+      <div class="session-xp-preview" id="session-xp-preview"></div>
+      <button class="rs-btn full orange" style="margin-top:10px;" onclick="endSession()">✓ FINISH WORKOUT</button>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:8px;text-align:center;">This counts toward your streak</div>
+    </div>
+
+    <!-- PRs TAB -->
+    <div id="s-tab-prs" class="rs-panel" style="display:none">
+      <div class="panel-title">PERSONAL RECORDS</div>
+      <div class="pr-grid" id="pr-grid"></div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div id="s-tab-history" class="rs-panel" style="display:none">
+      <div class="panel-title">HISTORY</div>
+      <div class="history-wrap"><div class="history-list" id="history-list"></div></div>
+      <hr class="divider">
+      <button class="rs-btn danger sm" onclick="clearHistory()">CLEAR HISTORY</button>
+    </div>
+  </div>
+
+</div>
+<script>
+// ── XP TABLE (OSRS formula) ──────────────────────────────────────────────────
+const XP_TABLE = (() => {
+  const t = [0];
+  for (let lv = 1; lv <= 99; lv++) {
+    let pts = 0;
+    for (let i = 1; i < lv; i++) pts += Math.floor(i + 300 * Math.pow(2, i / 7));
+    t.push(Math.floor(pts / 4));
+  }
+  return t;
+})();
+function levelFromXP(xp) { let lv = 1; while (lv < 99 && XP_TABLE[lv] <= xp) lv++; return lv; }
+function xpProgress(lv, xp) {
+  if (lv >= 99) return { needed: 0, progress: 1 };
+  const cur = XP_TABLE[lv - 1] || 0, next = XP_TABLE[lv];
+  return { needed: Math.max(0, next - xp), progress: Math.min(1, (xp - cur) / (next - cur)) };
+}
+
+// ── RANKS ────────────────────────────────────────────────────────────────────
+const RANKS = [
+  [1,  'NOVICE LIFTER',  'rank-iron'],
+  [10, 'APPRENTICE',     'rank-iron'],
+  [20, 'IRON LIFTER',    'rank-iron'],
+  [30, 'BRONZE LIFTER',  'rank-bronze'],
+  [40, 'STEEL LIFTER',   'rank-steel'],
+  [50, 'SILVER LIFTER',  'rank-steel'],
+  [60, 'GOLD LIFTER',    'rank-gold'],
+  [70, 'ELITE LIFTER',   'rank-gold'],
+  [80, 'MASTER LIFTER',  'rank-dragon'],
+  [90, 'GRANDMASTER',    'rank-dragon'],
+  [99, 'MYTHIC LIFTER',  'rank-max'],
+];
+function getRank(lv) { let r = RANKS[0]; for (const rk of RANKS) { if (lv >= rk[0]) r = rk; } return r; }
+
+// ── STREAK MULTIPLIERS ───────────────────────────────────────────────────────
+const STREAK_TIERS = [
+  { days: 100, mult: 1.75, label: '1.75x' },
+  { days: 30,  mult: 1.5,  label: '1.5x'  },
+  { days: 14,  mult: 1.3,  label: '1.3x'  },
+  { days: 7,   mult: 1.2,  label: '1.2x'  },
+  { days: 3,   mult: 1.1,  label: '1.1x'  },
+  { days: 0,   mult: 1.0,  label: '1.0x'  },
+];
+function getMultiplier(streak) {
+  for (const t of STREAK_TIERS) { if (streak >= t.days) return t; }
+  return STREAK_TIERS[STREAK_TIERS.length - 1];
+}
+
+// ── EXERCISES ────────────────────────────────────────────────────────────────
+const PR_LIFTS = [
+  'Squat','Bench Press','Deadlift','Overhead Press','Barbell Row',
+  'RDL','Incline Bench','Bulgarian Split Squat',
+  'Weighted Pull-ups','Hip Thrust','Weighted Dips','Hack Squat'
+];
+const ACCESSORY_DEFAULTS = [
+  'Leg Press','Leg Extension','Lying Leg Curl','Lat Pulldown'
+];
+
+// ── DEFAULT SKILLS ───────────────────────────────────────────────────────────
+const SKILL_DEFAULTS = [
+  { id: 'strength', name: 'Strength', icon: '🏋', xp: 0, hasPage: true },
+  { id: 2, name: 'Cooking',  icon: '🍳', xp: 0 },
+  { id: 3, name: 'Reading',  icon: '📚', xp: 0 },
+  { id: 4, name: 'Coding',   icon: '💻', xp: 0 },
+  { id: 5, name: 'Guitar',   icon: '🎸', xp: 0 },
+  { id: 6, name: 'Drawing',  icon: '✏️', xp: 0 },
+];
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+function loadState() {
+  try { const s = localStorage.getItem('irl_v3'); if (s) return JSON.parse(s); } catch(e) {}
+  return {
+    skills: SKILL_DEFAULTS.map(s => ({ ...s })),
+    nextId: 10,
+    selectedSkill: null,
+    strength: {
+      xp: 0,
+      prs: {},
+      history: [],
+      exercises: [...ACCESSORY_DEFAULTS],
+      streak: 0,
+      bestStreak: 0,
+      lastSessionDate: null,
+      sessionXP: 0,
+      selectedRPE: null,
+    }
+  };
+}
+function saveState() { try { localStorage.setItem('irl_v3', JSON.stringify(state)); } catch(e) {} }
+let state = loadState();
+
+// ── STREAK HELPERS ───────────────────────────────────────────────────────────
+function dayKey(date) {
+  const d = date || new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function daysDiff(d1, d2) {
+  const a = new Date(d1); a.setHours(0,0,0,0);
+  const b = new Date(d2); b.setHours(0,0,0,0);
+  return Math.round((b - a) / 86400000);
+}
+function getRestDayCount() {
+  if (!state.strength.lastSessionDate) return 0;
+  const diff = daysDiff(state.strength.lastSessionDate, new Date());
+  return Math.max(0, diff - 1);
+}
+function checkStreakReset() {
+  const rest = getRestDayCount();
+  if (rest >= 3) {
+    state.strength.streak = 0;
+    saveState();
+  }
+}
+
+// ── HOME PAGE ────────────────────────────────────────────────────────────────
+function renderHome() {
+  checkStreakReset();
+  const grid = document.getElementById('skills-grid');
+  grid.innerHTML = '';
+  state.skills.forEach(sk => {
+    const lv = sk.id === 'strength' ? levelFromXP(state.strength.xp) : levelFromXP(sk.xp);
+    const xp = sk.id === 'strength' ? state.strength.xp : sk.xp;
+    const { progress } = xpProgress(lv, xp);
+    const card = document.createElement('div');
+    card.className = 'skill-card' + (sk.hasPage ? ' has-page' : '') + (state.selectedSkill === sk.id ? ' selected' : '');
+    card.onclick = () => {
+      if (sk.hasPage) { openSkillPage(sk.id); return; }
+      state.selectedSkill = state.selectedSkill === sk.id ? null : sk.id;
+      saveState(); renderHome();
+      document.getElementById('del-btn').style.display = state.selectedSkill ? '' : 'none';
+    };
+    card.innerHTML = `
+      <div class="skill-header">
+        <span class="skill-icon">${sk.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div class="skill-name">${sk.name}</div>
+          <div class="skill-level">${lv}</div>
+        </div>
+      </div>
+      <div class="xp-bar-wrap"><div class="xp-bar-fill" style="width:${Math.round(progress*100)}%"></div></div>
+      ${sk.hasPage ? '<div class="skill-tag">▶ TAP TO OPEN</div>' : ''}
+    `;
+    grid.appendChild(card);
+  });
+  const total = state.skills.reduce((a, sk) => {
+    const xp = sk.id === 'strength' ? state.strength.xp : sk.xp;
+    return a + levelFromXP(xp);
+  }, 0);
+  document.getElementById('total-level-display').innerHTML = `TOTAL LEVEL: <span>${total}</span>`;
+  document.getElementById('del-btn').style.display = state.selectedSkill ? '' : 'none';
+}
+
+function openSkillPage(id) {
+  if (id === 'strength') {
+    document.getElementById('page-home').classList.remove('active');
+    document.getElementById('page-strength').classList.add('active');
+    renderStrengthPage();
+  }
+}
+function goHome() {
+  document.getElementById('page-strength').classList.remove('active');
+  document.getElementById('page-home').classList.add('active');
+  renderHome();
+}
+
+// ADD / DELETE SKILLS
+function showAddSkill() { document.getElementById('add-skill-modal').style.display = ''; }
+function hideAddSkill() { document.getElementById('add-skill-modal').style.display = 'none'; }
+function addSkill() {
+  const name = document.getElementById('new-skill-name').value.trim();
+  const icon = document.getElementById('new-skill-icon').value.trim() || '⭐';
+  if (!name) { alert('Enter a skill name'); return; }
+  state.skills.push({ id: state.nextId++, name, icon, xp: 0 });
+  saveState(); renderHome(); hideAddSkill();
+  document.getElementById('new-skill-name').value = '';
+  document.getElementById('new-skill-icon').value = '';
+}
+function deleteSelectedSkill() {
+  if (!state.selectedSkill) return;
+  const sk = state.skills.find(s => s.id === state.selectedSkill);
+  if (!sk || sk.hasPage) { alert("Can't delete built-in skills"); return; }
+  if (!confirm(`Delete "${sk.name}"?`)) return;
+  state.skills = state.skills.filter(s => s.id !== state.selectedSkill);
+  state.selectedSkill = null;
+  saveState(); renderHome();
+}
+
+// ── STRENGTH PAGE ────────────────────────────────────────────────────────────
+function renderStrengthPage() {
+  renderStrengthLevel();
+  renderStreakCard();
+  populateExercises();
+  updateXPPreview();
+  buildRPEButtons();
+  updateSessionPreview();
+}
+
+function renderStrengthLevel() {
+  const lv = levelFromXP(state.strength.xp);
+  const { needed, progress } = xpProgress(lv, state.strength.xp);
+  const rank = getRank(lv);
+  document.getElementById('s-level-num').textContent = lv;
+  document.getElementById('s-level-num').className = 'level-orb ' + rank[2];
+  document.getElementById('s-level-rank').textContent = rank[1];
+  document.getElementById('s-level-rank').className = 'level-rank ' + rank[2];
+  document.getElementById('s-xp-bar').style.width = Math.round(progress * 100) + '%';
+  document.getElementById('s-xp-numbers').textContent = lv < 99
+    ? `${state.strength.xp.toLocaleString()} XP  •  ${needed.toLocaleString()} to lv ${lv + 1}`
+    : `${state.strength.xp.toLocaleString()} XP  •  MAX LEVEL`;
+}
+
+function renderStreakCard() {
+  checkStreakReset();
+  const str = state.strength;
+  const rest = getRestDayCount();
+  const mult = getMultiplier(str.streak);
+  document.getElementById('streak-num').textContent = str.streak;
+  document.getElementById('streak-best').textContent = `Best: ${str.bestStreak} days`;
+  const badge = document.getElementById('multiplier-badge');
+  badge.textContent = mult.label + ' XP';
+  badge.className = 'multiplier-badge' + (str.streak >= 3 ? ' active' : '');
+  if (str.streak >= 3) badge.style.color = 'var(--orange)';
+  else badge.style.color = 'var(--text-muted)';
+  const warn = document.getElementById('rest-warning');
+  if (rest === 1) { warn.textContent = '⚠ 1 REST DAY — 1 LEFT'; warn.style.display = ''; }
+  else if (rest === 2) { warn.textContent = '⚠ 2 REST DAYS — LAST CHANCE!'; warn.style.display = ''; }
+  else { warn.style.display = 'none'; }
+}
+
+// ── LOG LIFT ─────────────────────────────────────────────────────────────────
+const ALL_EXERCISES = () => [...PR_LIFTS, ...state.strength.exercises];
+
+function populateExercises() {
+  const sel = document.getElementById('ex-select');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  const addGroup = (label, items) => {
+    const g = document.createElement('optgroup');
+    g.label = label;
+    items.forEach(ex => { const o = document.createElement('option'); o.value = ex; o.textContent = ex; g.appendChild(o); });
+    sel.appendChild(g);
+  };
+  addGroup('── COMPOUND (PR tracked) ──', PR_LIFTS);
+  addGroup('── ACCESSORIES ──', state.strength.exercises);
+  if (prev && ALL_EXERCISES().includes(prev)) sel.value = prev;
+}
+
+function calcXP(exercise, weight, sets, reps) {
+  const base = Math.floor(weight * reps * sets * 0.12);
+  const pr = state.strength.prs[exercise];
+  const isPRLift = PR_LIFTS.includes(exercise);
+  let prBonus = 0, isPRWeight = false, isPRReps = false;
+  if (isPRLift) {
+    if (!pr || weight > pr.weight) { prBonus = Math.floor(weight * 1.5); isPRWeight = true; }
+    else if (weight === pr.weight && reps > (pr.reps || 0)) { prBonus = Math.floor(weight * 0.6); isPRReps = true; }
+  }
+  return { base, prBonus, total: base + prBonus, isPRWeight, isPRReps };
+}
+
+function updateXPPreview() {
+  const ex = document.getElementById('ex-select')?.value;
+  const weight = parseFloat(document.getElementById('ex-weight')?.value) || 0;
+  const sets = parseInt(document.getElementById('ex-sets')?.value) || 0;
+  const reps = parseInt(document.getElementById('ex-reps')?.value) || 0;
+  const preview = document.getElementById('xp-preview');
+  if (!ex || !weight || !sets || !reps) { preview.style.display = 'none'; return; }
+  const { base, prBonus, total, isPRWeight, isPRReps } = calcXP(ex, weight, sets, reps);
+  let html = `<span class="big">+${total.toLocaleString()} XP</span>  <span style="color:var(--text-muted)">(${base.toLocaleString()} base`;
+  if (prBonus > 0) html += ` + <span style="color:var(--gold)">${prBonus.toLocaleString()} PR BONUS</span>`;
+  html += ')</span>';
+  if (isPRWeight) html += `<span class="pr-tag">🏆 WEIGHT PR!</span>`;
+  else if (isPRReps) html += `<span class="pr-tag">🔥 REP PR!</span>`;
+  preview.innerHTML = html;
+  preview.style.display = '';
+  // accumulate session XP preview
+  updateSessionPreview();
+}
+
+function logLift() {
+  const ex = document.getElementById('ex-select').value;
+  const weight = parseFloat(document.getElementById('ex-weight').value) || 0;
+  const sets = parseInt(document.getElementById('ex-sets').value) || 1;
+  const reps = parseInt(document.getElementById('ex-reps').value) || 0;
+  if (!weight || !reps) { alert('Enter weight and reps'); return; }
+  const { base, prBonus, total, isPRWeight, isPRReps } = calcXP(ex, weight, sets, reps);
+  const lvBefore = levelFromXP(state.strength.xp);
+
+  // Update PR (only for PR lifts)
+  let prType = null;
+  if (PR_LIFTS.includes(ex)) {
+    const pr = state.strength.prs[ex];
+    if (!pr || weight > pr.weight) { state.strength.prs[ex] = { weight, reps, date: Date.now() }; prType = 'weight'; }
+    else if (weight === pr.weight && reps > (pr.reps || 0)) { state.strength.prs[ex] = { ...pr, reps, date: Date.now() }; prType = 'reps'; }
+  }
+
+  state.strength.xp += total;
+  state.strength.sessionXP = (state.strength.sessionXP || 0) + total;
+  state.strength.history.unshift({ ex, weight, sets, reps, xp: total, prType, ts: Date.now(), type: 'lift' });
+  if (state.strength.history.length > 300) state.strength.history = state.strength.history.slice(0, 300);
+
+  const lvAfter = levelFromXP(state.strength.xp);
+  saveState();
+  renderStrengthLevel();
+  updateXPPreview();
+  showXPPopup(total);
+  if (prType) setTimeout(() => showBanner(prType === 'weight' ? `🏆 PR! ${ex}: ${weight} lbs` : `🔥 REP PR! ${ex}: ${reps} reps @ ${weight} lbs`, 'pr'), 200);
+  if (lvAfter > lvBefore) setTimeout(() => showLevelUp(lvAfter), prType ? 1500 : 300);
+
+  document.getElementById('ex-weight').value = '';
+  document.getElementById('ex-reps').value = '';
+  document.getElementById('xp-preview').style.display = 'none';
+  updateSessionPreview();
+
+  // Also update home skill card XP
+  const homeSk = state.skills.find(s => s.id === 'strength');
+  if (homeSk) homeSk.xp = state.strength.xp;
+  saveState();
+}
+
+function addCustomExercise() {
+  const name = document.getElementById('custom-ex-name').value.trim();
+  if (!name) { alert('Enter a name'); return; }
+  if (ALL_EXERCISES().map(e => e.toLowerCase()).includes(name.toLowerCase())) { alert('Already exists!'); return; }
+  state.strength.exercises.push(name);
+  saveState(); populateExercises();
+  document.getElementById('custom-ex-name').value = '';
+}
+
+// ── END SESSION ───────────────────────────────────────────────────────────────
+let selectedRPE = null;
+
+function buildRPEButtons() {
+  const row = document.getElementById('rpe-row');
+  row.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'rpe-btn' + (i >= 9 ? ' max' : i >= 7 ? ' hard' : '');
+    btn.textContent = i;
+    if (selectedRPE === i) btn.classList.add('selected');
+    btn.onclick = () => { selectedRPE = i; buildRPEButtons(); updateSessionPreview(); };
+    row.appendChild(btn);
+  }
+}
+
+function updateSessionPreview() {
+  const preview = document.getElementById('session-xp-preview');
+  if (!selectedRPE) { preview.style.display = 'none'; return; }
+  const sessionBase = state.strength.sessionXP || 0;
+  const rpeBonus = Math.floor(sessionBase * (selectedRPE / 10) * 0.3);
+  const streakMult = getMultiplier(state.strength.streak).mult;
+  const friendMult = document.getElementById('friend-check')?.checked ? 1.15 : 1;
+  const total = Math.floor((sessionBase + rpeBonus) * streakMult * friendMult);
+  const streakLabel = streakMult > 1 ? ` × ${streakMult} STREAK` : '';
+  const friendLabel = friendMult > 1 ? ' × 1.15 FRIEND' : '';
+  preview.innerHTML = `SESSION BONUS: +${rpeBonus.toLocaleString()} XP (RPE ${selectedRPE})${streakLabel}${friendLabel}<br>TOTAL THIS SESSION: ${total.toLocaleString()} XP`;
+  preview.style.display = '';
+}
+
+function endSession() {
+  if (!selectedRPE) { alert('Rate your session difficulty first (1-10)'); return; }
+  const sessionBase = state.strength.sessionXP || 0;
+  const rpeBonus = Math.floor(sessionBase * (selectedRPE / 10) * 0.3);
+  const streakMult = getMultiplier(state.strength.streak).mult;
+  const withFriend = document.getElementById('friend-check').checked;
+  const friendMult = withFriend ? 1.15 : 1;
+  const bonusXP = Math.floor((rpeBonus) * streakMult * friendMult);
+
+  // Update streak
+  const today = dayKey();
+  const lastDay = state.strength.lastSessionDate ? dayKey(new Date(state.strength.lastSessionDate)) : null;
+  let newStreak = state.strength.streak;
+  if (lastDay === today) {
+    // already logged today, no streak change
+  } else {
+    const rest = getRestDayCount();
+    if (rest <= 2) { newStreak += 1; }
+    else { newStreak = 1; }
+  }
+  const wasStreak = state.strength.streak;
+  state.strength.streak = newStreak;
+  state.strength.bestStreak = Math.max(newStreak, state.strength.bestStreak || 0);
+  state.strength.lastSessionDate = Date.now();
+
+  // Award bonus XP
+  state.strength.xp += bonusXP;
+  state.strength.sessionXP = 0;
+
+  state.strength.history.unshift({
+    type: 'session', rpe: selectedRPE, bonusXP, withFriend,
+    streak: newStreak, mult: streakMult, ts: Date.now()
+  });
+
+  const lvBefore = levelFromXP(state.strength.xp - bonusXP);
+  const lvAfter = levelFromXP(state.strength.xp);
+
+  const homeSk = state.skills.find(s => s.id === 'strength');
+  if (homeSk) homeSk.xp = state.strength.xp;
+  saveState();
+
+  renderStrengthLevel();
+  renderStreakCard();
+  showXPPopup(bonusXP);
+
+  const milestones = [3, 7, 14, 30, 100];
+  if (milestones.includes(newStreak)) setTimeout(() => showBanner(`🔥 ${newStreak} DAY STREAK!`, 'streak'), 400);
+  if (lvAfter > lvBefore) setTimeout(() => showLevelUp(lvAfter), 800);
+
+  // Reset UI
+  selectedRPE = null;
+  buildRPEButtons();
+  document.getElementById('friend-check').checked = false;
+  document.getElementById('session-xp-preview').style.display = 'none';
+  sTab('log');
+  alert(`Session complete! +${bonusXP.toLocaleString()} bonus XP\nStreak: ${newStreak} days 🔥`);
+}
+
+// ── PRs ───────────────────────────────────────────────────────────────────────
+function renderPRs() {
+  const grid = document.getElementById('pr-grid');
+  grid.innerHTML = '';
+  PR_LIFTS.forEach(ex => {
+    const pr = state.strength.prs[ex];
+    const card = document.createElement('div');
+    card.className = 'pr-card';
+    if (pr) {
+      const d = new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      card.innerHTML = `<div class="pr-exercise">${ex}</div><div class="pr-weight">${pr.weight} lbs</div><div class="pr-meta">${pr.reps} reps  •  ${d}</div>`;
+    } else {
+      card.innerHTML = `<div class="pr-exercise">${ex}</div><div class="pr-empty-sm">no PR yet</div>`;
+    }
+    grid.appendChild(card);
+  });
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!state.strength.history.length) { list.innerHTML = '<div class="empty-msg">No activity yet.</div>'; return; }
+  list.innerHTML = state.strength.history.map(h => {
+    const d = new Date(h.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (h.type === 'session') {
+      return `<div class="history-item">
+        <div class="history-left">
+          <div class="history-exercise">SESSION END <span class="session-badge">RPE ${h.rpe}</span>${h.withFriend ? ' <span class="session-badge">👥 FRIEND</span>' : ''}</div>
+          <div class="history-detail">${h.streak} day streak  •  ${h.mult}x multiplier</div>
+        </div>
+        <div class="history-right">
+          <div class="history-xp">+${h.bonusXP.toLocaleString()} XP</div>
+          <div class="history-date">${d}</div>
+        </div>
+      </div>`;
+    }
+    const prBadge = h.prType ? `<span class="pr-badge">${h.prType === 'weight' ? '🏆 PR' : '🔥 REP PR'}</span>` : '';
+    return `<div class="history-item">
+      <div class="history-left">
+        <div class="history-exercise">${h.ex}${prBadge}</div>
+        <div class="history-detail">${h.sets}×${h.reps} @ ${h.weight} lbs</div>
+      </div>
+      <div class="history-right">
+        <div class="history-xp">+${h.xp.toLocaleString()} XP</div>
+        <div class="history-date">${d}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function clearHistory() { if (confirm('Clear all history?')) { state.strength.history = []; saveState(); renderHistory(); } }
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function sTab(tab) {
+  ['log','session','prs','history'].forEach((t,i) => {
+    document.getElementById('s-tab-'+t).style.display = t === tab ? '' : 'none';
+    document.querySelectorAll('.tab')[i].classList.toggle('active', t === tab);
+  });
+  if (tab === 'prs') renderPRs();
+  if (tab === 'history') renderHistory();
+  if (tab === 'session') { buildRPEButtons(); updateSessionPreview(); }
+}
+
+// ── POPUPS ────────────────────────────────────────────────────────────────────
+function showXPPopup(xp) {
+  const p = document.createElement('div');
+  p.className = 'xp-popup';
+  p.textContent = `+${xp.toLocaleString()} XP`;
+  p.style.cssText = `left:${30+Math.random()*40}%;top:35%;`;
+  document.body.appendChild(p);
+  setTimeout(() => p.remove(), 2000);
+}
+function showBanner(msg, type) {
+  const b = document.createElement('div');
+  b.className = `banner ${type}`;
+  b.innerHTML = msg;
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 3000);
+}
+function showLevelUp(lv) {
+  const rank = getRank(lv);
+  showBanner(`⬆ LEVEL UP! ⬆<br><span class="${rank[2]}" style="font-size:8px">${rank[1]} — LV ${lv}</span>`, 'levelup');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderHome();
+</script>
+</body>
+</html>
